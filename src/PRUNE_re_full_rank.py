@@ -67,7 +67,7 @@ class PRUNE:
         return self.R(self.E(ind))
     
     def all_rank(self):
-        return self.R(self.E(range(self.instances)))
+        return self.rank(range(self.instances))
 
 def calc_pmi(graph, in_degrees, out_degrees, alpha=5.0):
     pmis = np.zeros((len(graph), 1))
