@@ -28,13 +28,26 @@ class Proximity:
     def __call__(self, x):
         return tf.nn.relu(self.l2(tf.nn.elu(self.l1(x))))
 
+class Ranking:
+    def __init__(self, embedding_size, hidden_size, scope):
+        with tf.variable_scope(scope):
+            self.l1 = Linear(embedding_size, hidden_size, "LinearLayer1")
+            self.l2 = Linear(hidden_size, 1, "LinearLayer2")
+    
+    def __call__(self, x):
+        return tf.nn.softplus(self.l2(tf.nn.elu(self.l1(x))))
+
 class PRUNE:
     def __init__(self, instances, embedding_size, hidden_size):
         self.E = Embedding(embedding_size=embedding_size, instances=instances, scope="NodeEmbedding")
         self.P = Proximity(embedding_size=embedding_size, hidden_size=hidden_size, scope="ProximityLayer")
+        self.R = Ranking(embedding_size=embedding_size, hidden_size=hidden_size, scope="RankingLayer")
 
-    def __call__(self, ind):
+    def proximity_representation(self, ind):
         return self.P(self.E(ind))
+    
+    def rank(self, ind):
+        return self.R(self.E(ind))
 
 def calc_pmi(graph, in_degrees, out_degrees, alpha=5.0):
     pmis = np.zeros((len(graph), 1))
@@ -54,14 +67,33 @@ def proximity_loss(model, hidden_size, source, target, pmis):
     W_shared = tf.get_variable("W_shared", [hidden_size, hidden_size],
                                 initializer=W_initializer)
     W_shared_posi = tf.nn.relu(W_shared)
-    z_i = model(source)
-    z_j = model(target)
+    z_i = model.proximity_representation(source)
+    z_j = model.proximity_representation(target)
     zWz = z_i * tf.matmul(z_j, W_shared_posi)
     zWz = tf.reduce_sum(zWz, 1, keep_dims=True)
     return tf.reduce_mean((zWz - pmis)**2)
 
+def ranking_loss(model, source, target, indeg, outdeg):
+    heads_pi = model.rank(source)
+    tails_pi = model.rank(target)
+    r_loss = indeg * (tf.square(-tails_pi / indeg + heads_pi / outdeg))
+    return tf.reduce_mean(r_loss)
+
+def full_loss(model, hidden_size, source, target, indeg, outdeg, pmis, lamb):
+    p_loss = proximity_loss(model, hidden_size, source, target, pmis)
+    r_loss = ranking_loss(model, source, target, indeg, outdeg)
+    return p_loss + lamb * r_loss
+
 if __name__ == "__main__":
-    graph = np.loadtxt("sample/graph.edgelist").astype(np.int32)
+    # parameters
+    input_graph = "sample/graph.edgelist"
+    embedding_size = 100
+    hidden_size = 64
+    num_epochs = 100
+    lamb = 0.01
+    learning_rate = 0.01
+    
+    graph = np.loadtxt(input_graph).astype(np.int32)
     nodeCount = graph.max() + 1
     out_degrees = np.zeros(nodeCount)
     in_degrees = np.zeros(nodeCount)
@@ -69,24 +101,27 @@ if __name__ == "__main__":
         out_degrees[node_i] += 1
         in_degrees[node_j] += 1
     pmis = calc_pmi(graph, in_degrees, out_degrees)
+    out_degrees[out_degrees == 0] = 1
+    in_degrees[in_degrees == 0] = 1
     
-    embedding_size = 100
-    hidden_size = 64
-    num_epochs = 100
     pmi = tf.placeholder("float", [None, 1])
     source = tf.placeholder(tf.int32, [None])
     target = tf.placeholder(tf.int32, [None])
+    outdeg = tf.placeholder("float", [None])
+    indeg = tf.placeholder("float", [None])
     model = PRUNE(nodeCount, embedding_size, hidden_size)
-    cost = proximity_loss(model, hidden_size, source, target, pmi)
+    cost = full_loss(model, hidden_size, source, target, indeg, outdeg, pmi, lamb)
     init = tf.global_variables_initializer()
-    optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.01).minimize(cost)
+    optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(cost)
 
     with tf.Session() as sess:
         sess.run(init)
         feed_dict = {
             pmi: pmis,
             source: graph[:, 0],
-            target: graph[:, 1]
+            target: graph[:, 1],
+            indeg: in_degrees[graph[:, 1]],
+            outdeg: out_degrees[graph[:, 0]]
         }
         for i in range(num_epochs):
             sess.run(optimizer, feed_dict=feed_dict)
