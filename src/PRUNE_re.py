@@ -3,6 +3,9 @@ import tensorflow as tf
 
 class Linear:
     def __init__(self, input_size, output_size, scope):
+        self.input_size = input_size
+        self.output_size = output_size
+        self.scope = scope
         with tf.variable_scope(scope):
             self.W = tf.get_variable("W_linear", [input_size, output_size])
             self.b = tf.get_variable("b_linear", [1, output_size])
@@ -12,6 +15,9 @@ class Linear:
 
 class Embedding:
     def __init__(self, embedding_size, instances, scope):
+        self.embedding_size = embedding_size
+        self.hidden_size = hidden_size
+        self.scope = scope
         with tf.variable_scope(scope):
             self.W = tf.get_variable("Embeddings", [instances, embedding_size])
             tf.summary.scalar('mean', tf.reduce_mean(self.W))
@@ -21,6 +27,9 @@ class Embedding:
 
 class Proximity:
     def __init__(self, embedding_size, hidden_size, scope):
+        self.embedding_size = embedding_size
+        self.hidden_size = hidden_size
+        self.scope = scope
         with tf.variable_scope(scope):
             self.l1 = Linear(embedding_size, hidden_size, "LinearLayer1")
             self.l2 = Linear(hidden_size, hidden_size, "LinearLayer2")
@@ -30,6 +39,9 @@ class Proximity:
 
 class Ranking:
     def __init__(self, embedding_size, hidden_size, scope):
+        self.embedding_size = embedding_size
+        self.hidden_size = hidden_size
+        self.scope = scope
         with tf.variable_scope(scope):
             self.l1 = Linear(embedding_size, hidden_size, "LinearLayer1")
             self.l2 = Linear(hidden_size, 1, "LinearLayer2")
@@ -38,10 +50,15 @@ class Ranking:
         return tf.nn.softplus(self.l2(tf.nn.elu(self.l1(x))))
 
 class PRUNE:
-    def __init__(self, instances, embedding_size, hidden_size):
-        self.E = Embedding(embedding_size=embedding_size, instances=instances, scope="NodeEmbedding")
-        self.P = Proximity(embedding_size=embedding_size, hidden_size=hidden_size, scope="ProximityLayer")
-        self.R = Ranking(embedding_size=embedding_size, hidden_size=hidden_size, scope="RankingLayer")
+    def __init__(self, instances, embedding_size, hidden_size, scope):
+        self.instances = instances
+        self.embedding_size = embedding_size
+        self.hidden_size = hidden_size
+        self.scope = scope
+        with tf.variable_scope(scope):
+            self.E = Embedding(embedding_size=embedding_size, instances=instances, scope="NodeEmbedding")
+            self.P = Proximity(embedding_size=embedding_size, hidden_size=hidden_size, scope="ProximityLayer")
+            self.R = Ranking(embedding_size=embedding_size, hidden_size=hidden_size, scope="RankingLayer")
 
     def proximity_representation(self, ind):
         return self.P(self.E(ind))
@@ -109,7 +126,7 @@ if __name__ == "__main__":
     target = tf.placeholder(tf.int32, [None])
     outdeg = tf.placeholder("float", [None])
     indeg = tf.placeholder("float", [None])
-    model = PRUNE(nodeCount, embedding_size, hidden_size)
+    model = PRUNE(nodeCount, embedding_size, hidden_size, "PRUNE")
     cost = full_loss(model, hidden_size, source, target, indeg, outdeg, pmi, lamb)
     init = tf.global_variables_initializer()
     optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(cost)
