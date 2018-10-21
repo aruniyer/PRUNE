@@ -2,32 +2,36 @@ import numpy as np
 import tensorflow as tf
 
 class Linear:
-    def __init__(self, input_size, output_size):
-        self.W = tf.Variable(tf.random_normal([input_size, output_size], stddev=1, seed=1, dtype=tf.float32))
-        self.b = tf.Variable(tf.random_normal([1, output_size], stddev=1, seed=1, dtype=tf.float32))
+    def __init__(self, input_size, output_size, scope):
+        with tf.variable_scope(scope):
+            self.W = tf.get_variable("W_linear", [input_size, output_size])
+            self.b = tf.get_variable("b_linear", [1, output_size])
     
     def __call__(self, x):
         return tf.add(tf.matmul(x, self.W), self.b)
 
 class Embedding:
-    def __init__(self, embedding_size, instances):
-        self.W = tf.Variable(tf.random_normal([instances, embedding_size], stddev=1, seed=1, dtype=tf.float32))
+    def __init__(self, embedding_size, instances, scope):
+        with tf.variable_scope(scope):
+            self.W = tf.get_variable("Embeddings", [instances, embedding_size])
+            tf.summary.scalar('mean', tf.reduce_mean(self.W))
     
     def __call__(self, ind):
         return tf.gather(self.W, ind)
 
 class Proximity:
-    def __init__(self, embedding_size, hidden_size):
-        self.l1 = Linear(embedding_size, hidden_size)
-        self.l2 = Linear(hidden_size, hidden_size)
+    def __init__(self, embedding_size, hidden_size, scope):
+        with tf.variable_scope(scope):
+            self.l1 = Linear(embedding_size, hidden_size, "LinearLayer1")
+            self.l2 = Linear(hidden_size, hidden_size, "LinearLayer2")
     
     def __call__(self, x):
         return tf.nn.relu(self.l2(tf.nn.elu(self.l1(x))))
 
 class PRUNE:
     def __init__(self, instances, embedding_size, hidden_size):
-        self.E = Embedding(embedding_size=embedding_size, instances=instances)
-        self.P = Proximity(embedding_size=embedding_size, hidden_size=hidden_size)
+        self.E = Embedding(embedding_size=embedding_size, instances=instances, scope="NodeEmbedding")
+        self.P = Proximity(embedding_size=embedding_size, hidden_size=hidden_size, scope="ProximityLayer")
 
     def __call__(self, ind):
         return self.P(self.E(ind))
@@ -64,24 +68,26 @@ if __name__ == "__main__":
     for node_i, node_j in graph:
         out_degrees[node_i] += 1
         in_degrees[node_j] += 1
-    PMI_values = calc_pmi(graph, in_degrees, out_degrees)
+    pmis = calc_pmi(graph, in_degrees, out_degrees)
     
     embedding_size = 100
     hidden_size = 64
-    pmis = tf.placeholder("float", [None, 1])
+    num_epochs = 100
+    pmi = tf.placeholder("float", [None, 1])
     source = tf.placeholder(tf.int32, [None])
     target = tf.placeholder(tf.int32, [None])
     model = PRUNE(nodeCount, embedding_size, hidden_size)
-    cost = proximity_loss(model, hidden_size, source, target, pmis)
-    optimizer = tf.train.GradientDescentOptimizer(learning_rate=1).minimize(cost)
+    cost = proximity_loss(model, hidden_size, source, target, pmi)
     init = tf.global_variables_initializer()
+    optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.01).minimize(cost)
+
     with tf.Session() as sess:
         sess.run(init)
         feed_dict = {
-            pmis: PMI_values,
+            pmi: pmis,
             source: graph[:, 0],
             target: graph[:, 1]
         }
-        for i in range(100):
+        for i in range(num_epochs):
             sess.run(optimizer, feed_dict=feed_dict)
             print(sess.run(cost, feed_dict=feed_dict))
