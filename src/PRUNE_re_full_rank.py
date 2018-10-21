@@ -123,7 +123,7 @@ if __name__ == "__main__":
     trans_mat = np.zeros([nodeCount, nodeCount])
     for i in range(nodeCount):
         for j in range(nodeCount):
-            if (out_degrees[i] != 0):
+            if (out_degrees[i] > 0):
                 trans_mat[i, j] = 1.0 / out_degrees[i]
     pmis = calc_pmi(graph, in_degrees, out_degrees)
     out_degrees[out_degrees == 0] = 1
