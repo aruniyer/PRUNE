@@ -4,7 +4,7 @@ from basic_prune import PRUNE, calc_pmi, proximity_loss
 
 def ranking_loss(model, transition_matrix):
     all_ranks = model.all_rank()
-    v1 = tf.reduce_sum(all_ranks * tf.transpose(transition_matrix), axis=1)
+    v1 = tf.sparse_tensor_dense_matmul(sp_a=transition_matrix, b=all_ranks)
     return tf.reduce_mean(tf.square(v1 - all_ranks))
 
 def full_loss(model, hidden_size, source, target, transition_matrix, pmis, lamb):
@@ -24,22 +24,31 @@ if __name__ == "__main__":
     graph = np.loadtxt(input_graph).astype(np.int32)
     nodeCount = graph.max() + 1
     M = len(graph[:, 0])
-    out_degrees = np.zeros(nodeCount)
-    in_degrees = np.zeros(nodeCount)
+    out_degrees = np.zeros([nodeCount, 1])
+    in_degrees = np.zeros([nodeCount, 1])
     for node_i, node_j in graph:
         out_degrees[node_i] += 1
         in_degrees[node_j] += 1
-    trans_mat = np.zeros([nodeCount, nodeCount])
+    
+    data = []
+    rows = []
+    cols = []
     for i in range(nodeCount):
         for j in range(nodeCount):
-            if (out_degrees[i] > 0):
-                trans_mat[i, j] = 1.0 / out_degrees[i]
+            if (out_degrees[j] > 0):
+                rows.append(i)
+                cols.append(j)
+                data.append(1.0 / float(out_degrees[j]))
+    data = np.array(data, copy=False)
+    rows = np.array(rows, dtype=np.int32, copy=False)
+    cols = np.array(cols, dtype=np.int32, copy=False)
+    sparse_trans_mat = tf.SparseTensorValue(indices=np.array([rows, cols]).T, values=data, dense_shape=[nodeCount, nodeCount])
     pmis = calc_pmi(graph, in_degrees, out_degrees)
     
     pmi = tf.placeholder("float", [M, 1])
     source = tf.placeholder(tf.int32, [M])
     target = tf.placeholder(tf.int32, [M])
-    transition_matrix = tf.placeholder("float", [nodeCount, nodeCount])
+    transition_matrix = tf.sparse_placeholder(tf.float32)
     model = PRUNE(nodeCount, embedding_size, hidden_size, "PRUNE")
     cost = full_loss(model, hidden_size, source, target, transition_matrix, pmi, lamb)
     init = tf.global_variables_initializer()
@@ -51,7 +60,7 @@ if __name__ == "__main__":
             pmi: pmis,
             source: graph[:, 0],
             target: graph[:, 1],
-            transition_matrix: trans_mat
+            transition_matrix: sparse_trans_mat
         }
         for i in range(num_epochs):
             sess.run(optimizer, feed_dict=feed_dict)

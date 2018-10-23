@@ -13,8 +13,8 @@ if __name__ == "__main__":
     
     graph = np.loadtxt(input_graph).astype(np.int32)
     nodeCount = graph.max() + 1
-    out_degrees = np.zeros(nodeCount)
-    in_degrees = np.zeros(nodeCount)
+    out_degrees = np.zeros([nodeCount, 1])
+    in_degrees = np.zeros([nodeCount, 1])
     for node_i, node_j in graph:
         out_degrees[node_i] += 1
         in_degrees[node_j] += 1
@@ -25,8 +25,8 @@ if __name__ == "__main__":
     pmi = tf.placeholder("float", [None, 1])
     source = tf.placeholder(tf.int32, [None])
     target = tf.placeholder(tf.int32, [None])
-    outdeg = tf.placeholder("float", [None])
-    indeg = tf.placeholder("float", [None])
+    outdeg = tf.placeholder("float", [None, 1])
+    indeg = tf.placeholder("float", [None, 1])
     model = PRUNE(nodeCount, embedding_size, hidden_size, "PRUNE")
     cost = full_loss(model, hidden_size, source, target, indeg, outdeg, pmi, lamb)
     init = tf.global_variables_initializer()
