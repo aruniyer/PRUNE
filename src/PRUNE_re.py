@@ -1,10 +1,11 @@
+import sys
 import numpy as np
 import tensorflow as tf
 from basic_prune import PRUNE, calc_pmi, full_loss
 
 if __name__ == "__main__":
     # parameters
-    input_graph = "sample/graph.edgelist"
+    input_graph = sys.argv[1]
     embedding_size = 100
     hidden_size = 64
     num_epochs = 100
