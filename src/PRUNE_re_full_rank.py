@@ -33,12 +33,11 @@ if __name__ == "__main__":
     data = []
     rows = []
     cols = []
-    for i in range(nodeCount):
-        for j in range(nodeCount):
-            if (out_degrees[j] > 0):
-                rows.append(i)
-                cols.append(j)
-                data.append(1.0 / float(out_degrees[j]))
+    for node_i, node_j in graph:
+        if (out_degrees[node_j] > 0):
+            rows.append(node_i)
+            cols.append(node_j)
+            data.append(1.0 / float(out_degrees[node_j]))
     data = np.array(data, copy=False)
     rows = np.array(rows, dtype=np.int32, copy=False)
     cols = np.array(cols, dtype=np.int32, copy=False)
