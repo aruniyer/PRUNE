@@ -48,8 +48,8 @@ def initialize_PRUNE(scope_name, n_emb, learning_rate, nodeCount, lamb):
     n_latent = 64
 
     # indegree and outdegree
-    outdeg = tf.placeholder("float", [None])
-    indeg = tf.placeholder("float", [None])
+    outdeg = tf.placeholder("float", [None, 1])
+    indeg = tf.placeholder("float", [None, 1])
 
     # indexes for head and tail nodes, PMI values
     node_heads = tf.placeholder(tf.int32, [None])
@@ -191,8 +191,8 @@ def run_PRUNE(lamb, graph, nodeCount, n_emb, learning_rate, epoch,
     Initialize and train PRUNE for node embeddings
     """
     # compute indegrees, outdegrees, PMI values
-    out_degrees = np.zeros(nodeCount)
-    in_degrees = np.zeros(nodeCount)
+    out_degrees = np.zeros([nodeCount, 1])
+    in_degrees = np.zeros([nodeCount, 1])
     for node_i, node_j in graph:
         out_degrees[node_i] += 1
         in_degrees[node_j] += 1
