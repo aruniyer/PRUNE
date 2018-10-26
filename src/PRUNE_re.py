@@ -34,7 +34,8 @@ if __name__ == "__main__":
     # parameters
     #input_graph = sys.argv[1]
     embedding_size = args.dimension
-    hidden_size = 64
+    hidden_size = 128
+    latent_size = 64
     num_epochs = args.epoch
     lamb = args.lamb
     learning_rate = args.learning_rate
@@ -55,8 +56,8 @@ if __name__ == "__main__":
     target = tf.placeholder(tf.int32, [None])
     outdeg = tf.placeholder("float", [None, 1])
     indeg = tf.placeholder("float", [None, 1])
-    model = PRUNE(nodeCount, embedding_size, hidden_size, "PRUNE")
-    cost = full_loss(model, hidden_size, source, target, indeg, outdeg, pmi, lamb)
+    model = PRUNE(nodeCount, embedding_size, hidden_size, latent_size, "PRUNE")
+    cost = full_loss(model, latent_size, source, target, indeg, outdeg, pmi, lamb)
     init = tf.global_variables_initializer()
     optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(cost)
 
