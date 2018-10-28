@@ -92,7 +92,7 @@ if __name__ == "__main__":
             print("Epoch-->" + str(i+1) + " ...")
             sess.run(optimizer, feed_dict=feed_dict)
             print(sess.run(cost, feed_dict=feed_dict))
-            if(i % 10 == 0):
+            if((i+1) % 10 == 0):
                 embs = sess.run(model.E.W)
                 filename = "full_rank_embeddings_epoch" + str(i)
                 np.savetxt(filename, embs, delimiter = ",")
