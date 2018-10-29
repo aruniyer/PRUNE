@@ -9,8 +9,8 @@ class Proximity:
         self.latent_size = latent_size
         self.scope = scope
         with tf.variable_scope(scope):
-            self.l1 = Linear(embedding_size, hidden_size, "LinearLayer1")
-            self.l2 = Linear(hidden_size, latent_size, "LinearLayer2")
+            self.l1 = Linear(input_size = embedding_size, output_size = hidden_size, scope = "LinearLayer1")
+            self.l2 = Linear(input_size = hidden_size, output_size = latent_size, scope = "LinearLayer2")
     
     def __call__(self, x):
         return tf.nn.relu(self.l2(tf.nn.elu(self.l1(x))))
@@ -21,8 +21,8 @@ class Ranking:
         self.hidden_size = hidden_size
         self.scope = scope
         with tf.variable_scope(scope):
-            self.l1 = Linear(embedding_size, hidden_size, "LinearLayer1")
-            self.l2 = Linear(hidden_size, 1, "LinearLayer2")
+            self.l1 = Linear(input_size = embedding_size, output_size = hidden_size, scope = "LinearLayer1")
+            self.l2 = Linear(input_size = hidden_size, output_size = 1, scope = "LinearLayer2")
     
     def __call__(self, x):
         return tf.nn.softplus(self.l2(tf.nn.elu(self.l1(x))))
@@ -61,6 +61,7 @@ def calc_pmi(graph, in_degrees, out_degrees, alpha=5.0):
 
 def proximity_loss(model, latent_size, source, target, pmis):
     W_init = np.identity(latent_size)
+    np.random.seed(1)
     W_init += abs(np.random.randn(latent_size, latent_size) / 1000.0)
     W_initializer = tf.constant_initializer(W_init)
     W_shared = tf.get_variable("W_shared", [latent_size, latent_size],
