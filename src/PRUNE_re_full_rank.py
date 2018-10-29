@@ -94,7 +94,7 @@ if __name__ == "__main__":
             print(sess.run(cost, feed_dict=feed_dict))
             if((i+1) % 10 == 0):
                 embs = sess.run(model.E.W)
-                filename = "full_rank_embeddings_epoch" + str(i)
+                filename = "full_rank_embeddings_epoch" + str(i+1)
                 np.savetxt(filename, embs, delimiter = ",")
         # final_embeddings = sess.run(model.E.W)
         # np.savetxt(args.output, final_embeddings, delimiter = ",")
