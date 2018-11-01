@@ -1,18 +1,19 @@
-import sys
+# PRUNE Restructured with constraints
+
 import argparse
+import sys
 import numpy as np
 import tensorflow as tf
-from basic_prune import PRUNE, calc_pmi, proximity_loss
+from basic_prune import PRUNE, calc_pmi, full_loss
 
-def ranking_loss(model, transition_matrix):
+def constraint_loss(model):
     all_ranks = model.all_rank()
-    v1 = tf.sparse_tensor_dense_matmul(sp_a=transition_matrix, b=all_ranks)
-    return tf.reduce_mean(tf.square(v1 - all_ranks))
+    return tf.square(tf.reduce_sum(all_ranks) - model.instances)
 
-def full_loss(model, latent_size, source, target, transition_matrix, pmis, lamb):
-    p_loss = proximity_loss(model, latent_size, source, target, pmis)
-    r_loss = ranking_loss(model, transition_matrix)
-    return p_loss + lamb * r_loss
+def full_loss_with_constraints(model, hidden_size, source, target, indeg, outdeg, pmis, lamb):
+    f_loss = full_loss(model, hidden_size, source, target, indeg, outdeg, pmis, lamb)
+    c_loss = constraint_loss(model)
+    return f_loss + 0.001 * c_loss
 
 if __name__ == "__main__":
 
@@ -50,43 +51,33 @@ if __name__ == "__main__":
     
     graph = np.loadtxt(args.inputgraph).astype(np.int32)
     nodeCount = graph.max() + 1
-    M = len(graph[:, 0])
     out_degrees = np.zeros([nodeCount, 1])
     in_degrees = np.zeros([nodeCount, 1])
     for node_i, node_j in graph:
         out_degrees[node_i] += 1
         in_degrees[node_j] += 1
-    
-    data = []
-    rows = []
-    cols = []
-    for node_i, node_j in graph:
-        if (out_degrees[node_j] > 0):
-            rows.append(node_i)
-            cols.append(node_j)
-            data.append(1.0 / float(out_degrees[node_j]))
-    data = np.array(data, copy=False)
-    rows = np.array(rows, dtype=np.int32, copy=False)
-    cols = np.array(cols, dtype=np.int32, copy=False)
-    sparse_trans_mat = tf.SparseTensorValue(indices=np.array([rows, cols]).T, values=data, dense_shape=[nodeCount, nodeCount])
     pmis = calc_pmi(graph, in_degrees, out_degrees)
+    out_degrees[out_degrees == 0] = 1
+    in_degrees[in_degrees == 0] = 1
     
-    pmi = tf.placeholder("float", [M, 1])
-    source = tf.placeholder(tf.int32, [M])
-    target = tf.placeholder(tf.int32, [M])
-    transition_matrix = tf.sparse_placeholder(tf.float32)
+    pmi = tf.placeholder("float", [None, 1])
+    source = tf.placeholder(tf.int32, [None])
+    target = tf.placeholder(tf.int32, [None])
+    outdeg = tf.placeholder("float", [None, 1])
+    indeg = tf.placeholder("float", [None, 1])
     model = PRUNE(nodeCount, embedding_size, hidden_size, latent_size, "PRUNE")
-    cost = full_loss(model, latent_size, source, target, transition_matrix, pmi, lamb)
+    cost = full_loss_with_constraints(model, latent_size, source, target, indeg, outdeg, pmi, lamb)
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
     init = tf.global_variables_initializer()
-
+    
     with tf.Session() as sess:
         sess.run(init)
         feed_dict = {
             pmi: pmis,
             source: graph[:, 0],
             target: graph[:, 1],
-            transition_matrix: sparse_trans_mat
+            indeg: in_degrees[graph[:, 1]],
+            outdeg: out_degrees[graph[:, 0]]
         }
         for i in range(num_epochs):
             print("Epoch-->" + str(i+1) + " ...")
@@ -94,7 +85,7 @@ if __name__ == "__main__":
             print(sess.run(cost, feed_dict=feed_dict))
             if((i+1) % 10 == 0):
                 embs = sess.run(model.E.W)
-                filename = "full_rank_embeddings_epoch" + str(i+1)
+                filename = "re_embeddings_epoch" + str(i+1)
                 np.savetxt(filename, embs, delimiter = ",")
         # final_embeddings = sess.run(model.E.W)
         # np.savetxt(args.output, final_embeddings, delimiter = ",")

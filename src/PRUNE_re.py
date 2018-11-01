@@ -58,8 +58,8 @@ if __name__ == "__main__":
     indeg = tf.placeholder("float", [None, 1])
     model = PRUNE(nodeCount, embedding_size, hidden_size, latent_size, "PRUNE")
     cost = full_loss(model, latent_size, source, target, indeg, outdeg, pmi, lamb)
+    optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
     init = tf.global_variables_initializer()
-    optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(cost)
 
     with tf.Session() as sess:
         sess.run(init)

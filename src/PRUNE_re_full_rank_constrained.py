@@ -14,6 +14,15 @@ def full_loss(model, latent_size, source, target, transition_matrix, pmis, lamb)
     r_loss = ranking_loss(model, transition_matrix)
     return p_loss + lamb * r_loss
 
+def constraint_loss(model):
+    all_ranks = model.all_rank()
+    return tf.square(tf.reduce_sum(all_ranks) - model.instances)
+
+def full_loss_with_constraints(model, latent_size, source, target, transition_matrix, pmis, lamb):
+    f_loss = full_loss(model, latent_size, source, target, transition_matrix, pmis, lamb)
+    c_loss = constraint_loss(model)
+    return f_loss + 0.001 * c_loss
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Restructured PRUNE.")
@@ -76,7 +85,7 @@ if __name__ == "__main__":
     target = tf.placeholder(tf.int32, [M])
     transition_matrix = tf.sparse_placeholder(tf.float32)
     model = PRUNE(nodeCount, embedding_size, hidden_size, latent_size, "PRUNE")
-    cost = full_loss(model, latent_size, source, target, transition_matrix, pmi, lamb)
+    cost = full_loss_with_constraints(model, latent_size, source, target, transition_matrix, pmi, lamb)
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
     init = tf.global_variables_initializer()
 
